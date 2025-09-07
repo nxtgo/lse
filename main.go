@@ -16,11 +16,13 @@ import (
 var configFile string
 var dirsFirst bool
 var showAll bool
+var realDirSize bool
 
 func init() {
 	flag.StringVar(&configFile, "cfg", "~/.config/lse.json", "config file")
 	flag.BoolVar(&dirsFirst, "d", false, "show directories first")
 	flag.BoolVar(&showAll, "a", false, "show hidden files")
+	flag.BoolVar(&realDirSize, "s", false, "show real dir size")
 	flag.Parse()
 }
 
@@ -75,7 +77,13 @@ func main() {
 		}
 
 		perm := color.Permissions(info.Mode().String(), cfg.Permissions)
-		size := color.Size(info.Size(), cfg.Size)
+		var sizeBytes int64
+		if info.IsDir() && realDirSize {
+			sizeBytes = dirSize(path)
+		} else {
+			sizeBytes = info.Size()
+		}
+		size := color.Size(sizeBytes, cfg.Size)
 		date := color.Date(info.ModTime().Format(time.Stamp), cfg.Date)
 		name := filepath.Base(path)
 		fullName := color.Name(name, info.Mode(), cfg.Icons, cfg.FileTypes)
@@ -145,4 +153,25 @@ func collectPaths(pattern string) []string {
 		return nil
 	}
 	return matches
+}
+
+func dirSize(path string) int64 {
+	var total int64
+	err := filepath.WalkDir(path, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
+			total += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0
+	}
+	return total
 }
