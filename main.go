@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 var configFile string
@@ -84,7 +83,7 @@ func main() {
 			sizeBytes = info.Size()
 		}
 		size := color.Size(sizeBytes, cfg.Size)
-		date := color.Date(info.ModTime().Format(time.Stamp), cfg.Date)
+		date := color.Date(info.ModTime().Format("Mon Jan 02 15:04:05 2006"), cfg.Date)
 		name := filepath.Base(path)
 		fullName := color.Name(name, info.Mode(), cfg.Icons, cfg.FileTypes)
 
