@@ -20,6 +20,8 @@ func GetFileIcon(name string, mode os.FileMode, cfg Icons) string {
 			return cfg.CharDev
 		}
 		return cfg.BlockDev
+	case mode&0111 != 0:
+		return cfg.Exec
 	}
 
 	ext := filepath.Ext(name)

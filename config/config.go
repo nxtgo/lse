@@ -46,9 +46,10 @@ type PermissionColors struct {
 }
 
 type DateColors struct {
-	Recent string
-	Week   string
-	Old    string
+	Seconds string
+	Hours   string
+	Days    string
+	Weeks   string
 }
 
 type Icons struct {
@@ -122,9 +123,10 @@ func DefaultConfig() Config {
 			Sticky:     "\033[44m", // blue background
 		},
 		Date: DateColors{
-			Recent: "\033[32m",
-			Week:   "\033[33m",
-			Old:    "\033[90m",
+			Seconds: "\033[1;31m",
+			Hours:   "\033[31m",
+			Days:    "\033[36m",
+			Weeks:   "\033[32m",
 		},
 		FileTypes: FileTypeColors{
 			Directory: "\033[34m",
@@ -135,13 +137,13 @@ func DefaultConfig() Config {
 			Socket:    "\033[35m",
 			Pipe:      "\033[33m",
 			Orphan:    "\033[31m",
-			Exec:      "\033[32m",
+			Exec:      "\033[1;31m",
 		},
 		Size: SizeColors{
-			Small:  "\033[37m",
+			Small:  "\033[32m",
 			Medium: "\033[33m",
 			Large:  "\033[31m",
-			Huge:   "\033[35m",
+			Huge:   "\033[1;35m",
 		},
 		UserGroup: UserGroupColors{
 			User:  "\033[36m",
@@ -153,7 +155,7 @@ func DefaultConfig() Config {
 			Directory:  "",
 			File:       "",
 			Symlink:    "",
-			Exec:       "",
+			Exec:       "",
 			Socket:     "",
 			Pipe:       "󰈲",
 			BlockDev:   "",

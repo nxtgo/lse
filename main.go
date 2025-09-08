@@ -6,6 +6,7 @@ import (
 	"lse/ansi"
 	"lse/color"
 	"lse/config"
+	"lse/util"
 	"os"
 	"path/filepath"
 	"sort"
@@ -25,7 +26,13 @@ func init() {
 	flag.Parse()
 }
 
-// todo: user & groups
+type FileRow struct {
+	Perm string
+	Size string
+	Date string
+	Name string
+}
+
 func main() {
 	cfg := config.LoadConfig(configFile)
 
@@ -34,7 +41,7 @@ func main() {
 		pattern = flag.Arg(0)
 	}
 
-	paths := collectPaths(pattern)
+	paths := util.CollectPaths(pattern)
 
 	if !showAll {
 		var filtered []string
@@ -68,35 +75,58 @@ func main() {
 		})
 	}
 
-	var files [][]string
+	type result struct {
+		row FileRow
+		ok  bool
+	}
+	results := make(chan result, len(paths))
+	sem := make(chan struct{}, 16)
+
 	for _, path := range paths {
-		info, err := os.Lstat(path)
-		if err != nil {
-			continue
-		}
+		sem <- struct{}{}
+		go func(p string) {
+			defer func() { <-sem }()
 
-		perm := color.Permissions(info.Mode().String(), cfg.Permissions)
-		var sizeBytes int64
-		if info.IsDir() && realDirSize {
-			sizeBytes = dirSize(path)
-		} else {
-			sizeBytes = info.Size()
-		}
-		size := color.Size(sizeBytes, cfg.Size)
-		date := color.Date(info.ModTime().Format("Mon Jan 02 15:04:05 2006"), cfg.Date)
-		name := filepath.Base(path)
-		fullName := color.Name(name, info.Mode(), cfg.Icons, cfg.FileTypes)
+			info, err := os.Lstat(p)
+			if err != nil {
+				results <- result{ok: false}
+				return
+			}
 
-		files = append(files, []string{perm, size, date, fullName})
+			var sizeBytes int64
+			if info.IsDir() && realDirSize {
+				sizeBytes = util.DirSize(p)
+			} else {
+				sizeBytes = info.Size()
+			}
+
+			row := FileRow{
+				Perm: color.Permissions(info.Mode().String(), cfg.Permissions),
+				Size: color.Size(sizeBytes, cfg.Size),
+				Date: color.Date(info.ModTime(), cfg.Date),
+				Name: color.Name(filepath.Base(p), info.Mode(), cfg.Icons, cfg.FileTypes),
+			}
+
+			results <- result{row: row, ok: true}
+		}(path)
+	}
+
+	var files []FileRow
+	for i := 0; i < len(paths); i++ {
+		res := <-results
+		if res.ok {
+			files = append(files, res.row)
+		}
 	}
 
 	if len(files) == 0 {
 		return
 	}
 
-	colWidths := make([]int, len(files[0]))
+	colWidths := make([]int, 4)
 	for _, f := range files {
-		for i, col := range f {
+		cols := []string{f.Perm, f.Size, f.Date, f.Name}
+		for i, col := range cols {
 			if w := ansi.VisibleLength(col); w > colWidths[i] {
 				colWidths[i] = w
 			}
@@ -104,73 +134,13 @@ func main() {
 	}
 
 	for _, f := range files {
-		for i, col := range f {
+		cols := []string{f.Perm, f.Size, f.Date, f.Name}
+		for i, col := range cols {
 			fmt.Print(ansi.PadString(col, colWidths[i]))
-			if i < len(f)-1 {
+			if i < len(cols)-1 {
 				fmt.Print(" ")
 			}
 		}
 		fmt.Println()
 	}
-}
-
-func collectPaths(pattern string) []string {
-	if strings.Contains(pattern, "**") {
-		root := strings.Split(pattern, "**")[0]
-		if root == "" {
-			root = "."
-		}
-		var paths []string
-		filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			matched, _ := filepath.Match(pattern, path)
-			if matched {
-				paths = append(paths, path)
-			}
-			return nil
-		})
-		return paths
-	}
-
-	info, err := os.Stat(pattern)
-	if err == nil && info.IsDir() {
-		entries, err := os.ReadDir(pattern)
-		if err != nil {
-			return nil
-		}
-		var paths []string
-		for _, e := range entries {
-			paths = append(paths, filepath.Join(pattern, e.Name()))
-		}
-		return paths
-	}
-
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil
-	}
-	return matches
-}
-
-func dirSize(path string) int64 {
-	var total int64
-	err := filepath.WalkDir(path, func(_ string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !d.IsDir() {
-			info, err := d.Info()
-			if err != nil {
-				return nil
-			}
-			total += info.Size()
-		}
-		return nil
-	})
-	if err != nil {
-		return 0
-	}
-	return total
 }

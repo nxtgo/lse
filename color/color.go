@@ -5,7 +5,7 @@ import (
 	"lse/ansi"
 	"lse/config"
 	"os"
-	"strings"
+	"time"
 )
 
 // Permissions returns ANSI-colored permission string
@@ -61,13 +61,13 @@ func Size(bytes int64, cfg config.SizeColors) string {
 
 	var color string
 	switch {
-	case bytes < 1024*1024: // <10 KB
+	case bytes < 10*1024: // < 10 KB
 		color = cfg.Small
-	case bytes < 1024*1024*1024: // <1 MB
+	case bytes < 10*1024*1024: // < 10 MB
 		color = cfg.Medium
-	case bytes < 1024*1024*1024*1024: // <1 GB
+	case bytes < 1024*1024*1024: // < 1 GB
 		color = cfg.Large
-	default:
+	default: // >= 1 GB
 		color = cfg.Huge
 	}
 
@@ -81,14 +81,32 @@ func Size(bytes int64, cfg config.SizeColors) string {
 	return color + formatted + ansi.Reset
 }
 
-// Date returns ANSI-colored date string (you can customize thresholds)
-func Date(date string, cfg config.DateColors) string {
-	if strings.Contains(date, ":") {
-		return cfg.Recent + date + ansi.Reset
-	} else if len(date) <= 6 {
-		return cfg.Week + date + ansi.Reset
+// Date returns ANSI-colored relative time based on thresholds in cfg
+func Date(t time.Time, cfg config.DateColors) string {
+	diff := time.Since(t)
+
+	var rel string
+	var color string
+
+	switch {
+	case diff < time.Minute:
+		color = cfg.Seconds
+		rel = fmt.Sprintf("%ds ago", int(diff.Seconds()))
+	case diff < time.Hour:
+		color = cfg.Hours
+		rel = fmt.Sprintf("%dm ago", int(diff.Minutes()))
+	case diff < 24*time.Hour:
+		color = cfg.Hours
+		rel = fmt.Sprintf("%dh ago", int(diff.Hours()))
+	case diff < 7*24*time.Hour:
+		color = cfg.Days
+		rel = fmt.Sprintf("%dd ago", int(diff.Hours()/24))
+	default:
+		color = cfg.Weeks
+		rel = fmt.Sprintf("%dw ago", int(diff.Hours()/(24*7)))
 	}
-	return cfg.Old + date + ansi.Reset
+
+	return color + rel + ansi.Reset
 }
 
 // Name returns the colored file name with icon based on type
